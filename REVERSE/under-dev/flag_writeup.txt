@@ -1,0 +1,53 @@
+# CTF Challenge Write-up: Finding the Flag
+
+## Challenge Overview
+The goal of this challenge was to extract a flag with the format `IDEH{...}` from an Android project source code derived from an APK.
+
+## Step 1: Static Analysis
+We started by searching the project codebase for the known flag format prefix "IDEH".
+
+### Search Command
+A grep search was performed on the directory:
+`grep -r "IDEH" .`
+
+### Findings
+The search revealed a match in:
+`app/src/main/java/com/example/ideh_android_easy/MainActivity.java`
+
+## Step 2: Source Code Analysis
+Upon inspecting `MainActivity.java`, we identified the following critical components:
+
+1.  **Target URL**: Matches a variable `flagUrl`.
+    ```java
+    private final String flagUrl = "http://ideh.cloud/andro1d";
+    ```
+
+2.  **API Key**: Matches a variable `apiKey`.
+    ```java
+    private final String apiKey = "IDEH-CTF-e4sy";
+    ```
+
+3.  **Network Request Logic**:
+    The `fetch` method constructs an HTTP GET request with specific headers:
+    ```java
+    conn.setRequestMethod("GET");
+    conn.setRequestProperty("X-Api-Key", this.apiKey);
+    conn.setRequestProperty("User-Agent", "IDEH-2025/1.0");
+    ```
+
+    Required Headers:
+    *   `X-Api-Key`: `IDEH-CTF-e4sy`
+    *   `User-Agent`: `IDEH-2025/1.0`
+
+## Step 3: Exploitation
+To retrieve the flag avoiding the need to run the Android app, we can manually replicate the HTTP request using `curl`.
+
+### Command
+```bash
+curl -H "X-Api-Key: IDEH-CTF-e4sy" -H "User-Agent: IDEH-2025/1.0" http://ideh.cloud/andro1d
+```
+
+## Step 4: Result
+Executing the command returned the flag successfully.
+
+**Flag**: `IDEH{e4sy_andro1d_interc3pt}`

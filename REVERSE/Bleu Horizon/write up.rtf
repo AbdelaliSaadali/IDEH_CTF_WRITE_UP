@@ -1,0 +1,128 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 Challenge : Blue Horizon\
+Category  : Reverse\
+Points    : 500\
+Flag      : IDEH\{H0pe_y0u_enj0y3d_s33_u_n3xt_year\}\
+\
+==================================================\
+1. RECONNAISSANCE\
+==================================================\
+\
+Le fichier fourni est un binaire ELF 64-bit x86_64 non stripp\'e9.\
+\
+Commande :\
+$ file Horizon\
+\
+Le programme demande une entr\'e9e de type "license" puis affiche "nope" en cas d\'92\'e9chec.\
+\
+Le statement indique :\
+"Checkpoint A then checkpoint B\
+ Patch it and you get a decoy, reverse it to recover the flag."\
+\
+Cela sugg\'e8re :\
+- Deux v\'e9rifications successives\
+- Un faux flag (decoy) si on patch na\'efvement\
+- Un vrai flag accessible uniquement via reverse engineering\
+\
+==================================================\
+2. ANALYSE GLOBALE DU MAIN\
+==================================================\
+\
+Dans main(), on observe la s\'e9quence suivante :\
+\
+1) Lecture de l\'92entr\'e9e utilisateur\
+2) Ex\'e9cution d\'92une VM personnalis\'e9e (Checkpoint A)\
+3) Extraction de 0x60 octets depuis l\'92\'e9tat interne\
+4) Calcul d\'92un digest SHA-256\
+5) Ex\'e9cution d\'92une seconde VM (Checkpoint B)\
+6) Nouveau digest SHA-256\
+7) Comparaison avec des constantes en .rodata\
+8) D\'e9chiffrement XTEA et affichage du r\'e9sultat\
+\
+Les deux checkpoints sont impl\'e9ment\'e9s via une machine virtuelle interne\
+(vm_run) avec du bytecode stock\'e9 en .rodata.\
+\
+==================================================\
+3. LE PI\'c8GE : LE DECOY\
+==================================================\
+\
+Si on patche simplement les comparaisons (ex: forcer un jump conditionnel),\
+le programme emprunte une branche alternative.\
+\
+Dans cette branche :\
+- Une cl\'e9 XTEA constante (16 bytes) est charg\'e9e depuis .rodata\
+- Un ciphertext constant (64 bytes) est d\'e9chiffr\'e9\
+- Le r\'e9sultat affich\'e9 est :\
+\
+IDEH\{vm_patch_prints_this_fake\}\
+\
+Ceci est le DECOY annonc\'e9 dans l\'92\'e9nonc\'e9.\
+\
+==================================================\
+4. LE VRAI FLAG : OBSERVATION CRITIQUE\
+==================================================\
+\
+Apr\'e8s le Checkpoint B, le programme calcule un digest SHA-256 (32 bytes),\
+puis le compare \'e0 DEUX CONSTANTES stock\'e9es en .rodata :\
+\
+- Constante A : 16 bytes\
+- Constante B : 16 bytes\
+\
+Ces constantes repr\'e9sentent le digest "attendu".\
+\
+IMPORTANT :\
+Le digest attendu est HARDCOD\'c9.\
+Il n\'92est donc PAS n\'e9cessaire de casser ou \'e9muler la VM pour continuer.\
+\
+==================================================\
+5. D\'c9RIVATION DE LA CL\'c9 XTEA\
+==================================================\
+\
+Les 32 bytes attendus sont d\'e9coup\'e9s en 8 DWORDs :\
+\
+D0 D1 D2 D3  (bloc A)\
+D4 D5 D6 D7  (bloc B)\
+\
+La cl\'e9 XTEA finale est d\'e9riv\'e9e ainsi :\
+\
+k0 = D0 XOR D5\
+k1 = D6 + D1\
+k2 = ROL(D7, 13) XOR D2\
+k3 = ROL(D4, 7)  + D3\
+\
+Cette cl\'e9 est utilis\'e9e pour d\'e9chiffrer\
+un ciphertext de 40 bytes (5 blocs XTEA).\
+\
+==================================================\
+6. D\'c9CHIFFREMENT FINAL\
+==================================================\
+\
+Apr\'e8s d\'e9chiffrement XTEA, le plaintext obtenu est :\
+\
+IDEH\{H0pe_y0u_enj0y3d_s33_u_n3xt_year\}\
+\
+Ceci correspond au VRAI flag.\
+\
+==================================================\
+7. CONCLUSION\
+==================================================\
+\
+- Patcher le binaire donne volontairement un faux flag (decoy)\
+- La VM sert surtout de distraction\
+- Le vrai secret repose sur des constantes SHA-256 laiss\'e9es en clair\
+- La cl\'e9 XTEA peut \'eatre reconstruite statiquement\
+- Aucun bruteforce ni \'e9mulation VM compl\'e8te n\'92est n\'e9cessaire\
+\
+==================================================\
+FLAG FINAL\
+==================================================\
+\
+IDEH\{H0pe_y0u_enj0y3d_s33_u_n3xt_year\}\
+\
+==================================================}

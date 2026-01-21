@@ -1,0 +1,46 @@
+# CTF Write-up: IDEH Unsecure Todo
+
+## Challenge Overview
+We have an Android project extracted from an APK. Security tools flagged CWE-926 (Improper Export) and CWE-564 (SQL Injection). The goal is to find the flag formatted `IDEH{...}`.
+
+## Vulnerability Analysis
+
+### 1. CWE-926: Leaky Content Provider
+In `AndroidManifest.xml`, the `LeakyProvider` component is exported:
+```xml
+<provider
+    android:name="com.cit.ideh_unsecure_todo.LeakyProvider"
+    android:exported="true"
+    android:authorities="com.cit.ideh_unsecure_todo.leaky"/>
+```
+This means any other app on the device can query this provider at `content://com.cit.ideh_unsecure_todo.leaky`.
+
+### 2. CWE-564: SQL Injection
+In `LeakyProvider.java`, the `query` method constructs a SQL query using string concatenation:
+```java
+String str = "SELECT _id, title, body FROM notes WHERE title LIKE '%" + queryParameter + "%';";
+```
+The `queryParameter` comes directly from the URI `q` parameter. This allows for SQL injection.
+
+## Exploitation / Flag Recovery
+
+### Method 1: Static Analysis (Source Code Review)
+1.  **Locate Database Creation**: In `FlagDb.java`, the `onCreate` method populates a `secrets` table.
+2.  **Trace Data Source**: It reads raw bytes from `R.raw.seed` (`seed.bin`), Base64 encodes them, and inserts them into the `secrets` table.
+3.  **Analyze `seed.bin`**: The hex values of `seed.bin` start with `13 1E 1F 12 ...`.
+4.  **Decrypt Flag**: Knowing the flag format starts with `IDEH` (ASCII `49 44 45 48`), we can derive the XOR key:
+    *   `0x13 ^ 0x49 ('I') = 0x5A`
+    *   `0x1E ^ 0x44 ('D') = 0x5A`
+    *   `0x1F ^ 0x45 ('E') = 0x5A`
+    *   `0x12 ^ 0x48 ('H') = 0x5A`
+    The key is `0x5A`. Decrypting the entire `seed.bin` with this key reveals the flag.
+
+### Method 2: Dynamic Exploitation (Simulated)
+If the app were running, an attacker could use the SQL injection to dump the `secrets` table.
+1.  **Payload**: `' UNION SELECT 1, flag_b64, '3' FROM secrets --`
+2.  **Query**: `content://com.cit.ideh_unsecure_todo.leaky/notes?q=' UNION SELECT 1, flag_b64, '3' FROM secrets --`
+3.  **Result**: The query would return the Base64 encoded string from the `secrets` table.
+4.  **Decode**: Base64 decode the result to get the raw bytes, then XOR with `0x5A` to get the text.
+
+## Validated Flag
+**IDEH{andr0id_prov1d3rs_are_c00l}**

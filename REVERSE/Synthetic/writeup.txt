@@ -1,0 +1,104 @@
+Synthetic State CTF Write-up
+==============================
+
+Challenge Summary:
+The "Synthetic State" challenge involved a complex multi-stage validation process for a "license" string, which ultimately decrypted a flag. The challenge combined custom hashing, a custom VM, SIMD/SSE bit manipulations, ARX (Addition-Rotation-XOR) rounds, and a final TEA-variant block cipher.
+
+1. Initial Analysis
+-------------------
+The provided file 'Synthetic' is a 64-bit Linux ELF executable. Running 'strings' on the binary revealed interesting symbols and hints:
+- 'license> ' prompt.
+- 'vm_run' and 'g_bytecode': Indicators of a custom virtual machine.
+- 'nope': The failure message.
+- Symbols like 'fgets', 'calloc', and 'puts'.
+
+The binary was not stripped, making disassembly and analysis significantly easier.
+
+2. Reversing the Logic
+----------------------
+Analysis of the 'main' function revealed several key stages:
+
+A. Input Hashing
+The input license (up to 256 bytes) is processed through an initial hashing loop that populates a 64-byte state ([rsp+0x180]). This loop uses constants and rotations to diffuse the input bits.
+
+B. Custom Virtual Machine (VM)
+The 'vm_run' function executes custom bytecode from 'g_bytecode'. Tracing the bytecode revealed that it performs a series of additions, XORs, and rotations on the internal state, similar to a stream cipher or hash initialization (e.g., ChaCha rounds).
+
+C. SSE Bit-Shuffling
+After the VM, the binary uses SSE instructions (movdqa, punpcklwd, psrld, etc.) to perform complex bit-level manipulations. This effectively expands and shuffles the bits of the 16-DWORD state across different memory locations.
+
+D. ARX Layers
+The state is then passed through two layers of ARX transformations:
+- Round 1: A 64-iteration loop modifying the state based on the hashed input.
+- Round 2: A 16-iteration loop using fixed rotations and additions.
+
+E. The Final Check
+The final state is compared against 8 hardcoded DWORDs extracted from '.rodata' (at 0x20c0 and 0x20d0). If the state matches these values, the program proceeds to decrypt the flag.
+
+3. Flag Decryption
+------------------
+If the license validation passes, the binary decrypts the flag using a TEA-variant (Tiny Encryption Algorithm). The keys for this decryption are DERIVED from the state that passed the check.
+
+Key Derivation (at main+0x419):
+- Key0 = state[0] ^ state[5]
+- Key1 = state[6] + state[1]
+- Key2 = rol(state[7], 13) ^ state[2]
+- Key3 = rol(state[4], 7) + state[3]
+
+Cipher Variant:
+The cipher is a 32-round Feistel network with a delta of 0x61c88647 and an initial sum of 0xc6ef3720. It uses non-standard indexing for the keys.
+
+4. Solution Script (Python)
+---------------------------
+To solve the challenge, a script was written to:
+1. Extract the "good" state constants from the binary.
+2. Replicate the key derivation logic using these constants.
+3. Invert the encryption/decryption loop logic precisely as seen in the disassembly (main+0x4b0 to main+0x500).
+
+```python
+import struct
+
+def rol(v, n):
+    return ((v << (n % 32)) & 0xffffffff) | ((v & 0xffffffff) >> (32 - (n % 32)))
+
+def decrypt_flag(keys):
+    flag_enc = [
+        0x25f0c452, 0x9cb6f874, 0xf77dc686, 0x37d7aba9,
+        0x53da0dfb, 0x3351625f
+    ]
+    delta = 0x61c88647
+    res = b""
+    for i in range(0, 6, 2):
+        v0, v1 = flag_enc[i], flag_enc[i + 1]
+        sum_val = 0xc6ef3720
+        for _ in range(32):
+            idx1 = (sum_val >> 11) & 3
+            term1 = (keys[idx1] + sum_val) & 0xffffffff
+            t1 = (((v0 << 4) ^ (v0 >> 5)) + v0) & 0xffffffff
+            v1 = (v1 - (t1 ^ term1)) & 0xffffffff
+            sum_val = (sum_val + delta) & 0xffffffff
+            idx0 = (sum_val & 3)
+            term2 = (keys[idx0] + sum_val) & 0xffffffff
+            t2 = (((v1 << 4) ^ (v1 >> 5)) + v1) & 0xffffffff
+            v0 = (v0 - (t2 ^ term2)) & 0xffffffff
+        res += struct.pack("<II", v0, v1)
+    return res
+
+# State from .rodata known to pass the check
+s = [0x224a3a3b, 0x8ac72cb4, 0x0abbcaf2, 0xd87f5e1d, 0x4f0e4a1e, 0xc232b0f0, 0x8c8a3b1d, 0x58521012]
+
+# Key derivation
+k = [
+    (s[0] ^ s[5]) & 0xffffffff,
+    (s[6] + s[1]) & 0xffffffff,
+    (rol(s[7], 13) ^ s[2]) & 0xffffffff,
+    (rol(s[4], 7) + s[3]) & 0xffffffff
+]
+
+print("Flag:", decrypt_flag(k).decode())
+```
+
+5. Flag
+-------
+Running the reversal script successfully recovered the flag:
+IDEH{vm_sch3m4t1cs}

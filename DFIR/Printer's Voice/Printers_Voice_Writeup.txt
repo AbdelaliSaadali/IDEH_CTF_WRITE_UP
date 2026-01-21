@@ -1,0 +1,107 @@
+Printer's Voice – Detailed Write-up
+================================
+
+Challenge summary
+-----------------
+A disgruntled employee is suspected of exfiltrating confidential data by printing it.
+He claims he never printed anything, but a suspicious file was found in a temporary
+Windows spooler directory.
+
+The goal is to analyze the recovered file and prove that a document was printed,
+then extract the hidden flag.
+
+---
+
+Step 1: Identify the recovered file
+-----------------------------------
+The recovered file has the extension `.SPL`.
+
+Key facts:
+- `.SPL` files are Windows Print Spool files.
+- They temporarily store print jobs before they are sent to the printer.
+- Even if print history is cleared, spool files may remain on disk.
+
+This already contradicts the suspect’s statement, but we still need proof of *what*
+was printed.
+
+---
+
+Step 2: Inspect the file signature
+----------------------------------
+Open the file with a hex editor or run:
+
+    file evidence.SPL
+
+Observation:
+- The file starts with the magic bytes `50 4B` (`PK`).
+
+Conclusion:
+- The spool file is actually a ZIP container.
+
+---
+
+Step 3: Extract the spool file
+------------------------------
+Rename the file or extract it directly:
+
+    mv evidence.SPL evidence.zip
+    unzip evidence.zip
+
+Result:
+- A directory structure consistent with an XPS print job appears.
+
+Typical structure:
+- FixedDocumentSequence.fdseq
+- Documents/1/FixedDoc.fdoc
+- Documents/1/Pages/
+- Documents/1/Resources/
+
+This confirms the job was printed using the Windows XPS print pipeline.
+
+---
+
+Step 4: Locate the printed content
+----------------------------------
+Navigate to:
+
+    Documents/1/Resources/Images/
+
+Inside, there is an image file (e.g. `1.JPG`).
+
+This image represents the rendered page exactly as it was sent to the printer.
+
+---
+
+Step 5: Analyze the rendered page
+---------------------------------
+Open the image.
+
+Findings:
+- The image clearly shows a classified document.
+- The document contains sensitive text and a visible CTF flag.
+
+This is definitive proof that:
+1. A print job occurred.
+2. The printed content matches confidential material.
+3. The suspect lied about never printing anything.
+
+---
+
+Step 6: Extract the flag
+-----------------------
+The flag is visible directly on the printed page image:
+
+    IDEH{Ev1denc3_L1ng3r5_1n_Sp00l_B1ts}
+
+---
+
+Final conclusion
+----------------
+Windows print spool artifacts persist even after attempts to hide activity.
+By analyzing the `.SPL` file, we reconstructed the exact printed document.
+
+The presence of the rendered page proves the employee printed the classified file,
+thereby physically exfiltrating the data.
+
+Flag:
+IDEH{Ev1denc3_L1ng3r5_1n_Sp00l_B1ts}
