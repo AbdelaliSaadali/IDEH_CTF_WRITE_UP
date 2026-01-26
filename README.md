@@ -33,4 +33,4 @@ During the competition, I participated with my teammate **Abdelbarie Rhayour** u
 Each folder contains the challenge files (where applicable) and a write-up in `.txt`, `.md`, or `.rtf` format explaining the step-by-step solution.
 
 ---
-*Maintained by [Abdelali Saadali](https://github.com/AbdelaliSaadali)*
+*Maintained by [Abdelali Saadali & Abdelbarie Rhayour ](https://github.com/AbdelaliSaadali)*
